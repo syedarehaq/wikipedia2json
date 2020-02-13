@@ -20,8 +20,14 @@ class Node:
     def _separator(self):
         return ',' if self._has_value else '{'
 
-    def add_tag(self, tag):
-        print('{}"{}":'.format(self._separator(), tag))
+    def add_tag(self, tag, opening_another_revision=False):
+        if not opening_another_revision:
+            if tag == "revision":
+                print('{}"revisions":'.format(self._separator(), tag))
+            else:
+                print('{}"{}":'.format(self._separator(), tag))
+        else:
+            print('{}'.format(self._separator()))
         if not self._has_value:
             self._has_value = True
 
@@ -57,6 +63,9 @@ class Wiki2Json:
         self._re_beg_page = re.compile(r'\s+<page>')
         self._re_end_page = re.compile(r'\s+</page>')
         self._re_empty = re.compile(r'\s+<(\w+).*/>')
+        self._opened_revision_arr = False
+        self._previous_multiline_tag = None
+        self._current_multiline_tag = None
         self._reset()
 
     def _reset(self):
@@ -73,7 +82,10 @@ class Wiki2Json:
         # </page>
         elif self._re_end_page.match(line):
             self._in_page = False
-            print('}\n')
+            self._opened_revision_arr = False
+            self._previous_multiline_tag = None
+            self._current_multiline_tag = None
+            print(']}\n')
             self._reset()
         # between <page> and </page>
         else:
@@ -81,7 +93,7 @@ class Wiki2Json:
             # contributor as True messes the json schema inferred by Spark
             if m and m.group(1) != 'contributor':
                 self._parent().add_tag(m.group(1))
-                self._parent().add_value(True)
+                self._parent().add_value("TRUE")
             elif not m:
                 self._parse_page(line)
 
@@ -104,6 +116,7 @@ class Wiki2Json:
         m = self._re_beg_tag.match(line)
         if m:
             # <tag>...
+            #import code; code.interact(local=dict(globals(), **locals()))
             self._init_multiline_tag(m.group(1))
             if m.group(2):
                 self._parent().append_multiline_text(m.group(2))
@@ -118,12 +131,24 @@ class Wiki2Json:
                 # only text, no tags
                 self._parent().append_multiline_text(line)
 
+    def opening_first_revision(self):
+        return self._current_multiline_tag == "revision" and not self._opened_revision_arr
+
+    def opening_another_revision(self):
+        return self._current_multiline_tag == "revision" and self._opened_revision_arr
+
     def _init_multiline_tag(self, tag):
-        self._parent().add_tag(tag)
+        self._current_multiline_tag = tag
+        self._parent().add_tag(tag, self.opening_another_revision())
         self._parents.append(Node())
         self._add_re_end_tag(tag)
+        if self.opening_first_revision():
+            print("[")
+            self._opened_revision_arr = True
 
     def _end_multiline_tag(self):
+        self._previous_multiline_tag = self._current_multiline_tag
+        self._current_multiline_tag = None
         self._parent().close()
         del self._parents[-1]
         del self._re_end_tags[-1]
