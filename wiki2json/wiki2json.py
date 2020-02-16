@@ -72,7 +72,7 @@ class Node:
       <sha1>lsg218ik67gsxdgv7qo53f5djrsmhif</sha1>
     </revision>
         """
-        if tag=="text":
+        if tag in ["text","comment"]:
             self._finish_multiline_text() if self._text.tell() > 0 else print(json.dumps(self._text.getvalue()))
         else:
             self._finish_multiline_text() if self._text.tell() > 0 else print('}')
