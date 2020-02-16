@@ -38,17 +38,44 @@ class Node:
         self._text.write(text)
 
     def add_timestamp(self, iso):
-        local = datetime.strptime(iso, '%Y-%m-%dT%H:%M:%SZ').timestamp()
-        utc = local - time.timezone
-        print(int(utc))
+        ## Syed change
+        #local = datetime.strptime(iso, '%Y-%m-%dT%H:%M:%SZ').timestamp()
+        #utc = local - time.timezone
+        #print(int(utc))
+        print(json.dumps(iso))
 
     # Adds previously appended text
     def _finish_multiline_text(self):
-        print(json.dumps(self._text.getvalue().replace('\n', ' ')))
+        ## Syed Change, he wants to keep the newlines in the text.
+        #print(json.dumps(self._text.getvalue().replace('\n', ' ')))
+        print(json.dumps(self._text.getvalue()))
         self._text.seek(0)
 
-    def close(self):
-        self._finish_multiline_text() if self._text.tell() > 0 else print('}')
+    def close(self,tag):
+        #import code; code.interact(local=dict(globals(), **locals()))
+        ## Syed dubugged here to resolve an issue where a multiline empty
+        ## text was producing an unclosed }
+        """
+        <revision>
+      <id>36442</id>
+      <parentid>26027</parentid>
+      <timestamp>2002-03-08T23:34:12Z</timestamp>
+      <contributor>
+        <username>Eclecticology</username>
+        <id>372</id>
+      </contributor>
+      <comment>*</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve">
+</text>
+      <sha1>lsg218ik67gsxdgv7qo53f5djrsmhif</sha1>
+    </revision>
+        """
+        if tag=="text":
+            self._finish_multiline_text() if self._text.tell() > 0 else print(json.dumps(self._text.getvalue()))
+        else:
+            self._finish_multiline_text() if self._text.tell() > 0 else print('}')
 
 
 class Wiki2Json:
@@ -75,6 +102,7 @@ class Wiki2Json:
         self._in_page = False
 
     def parse_line(self, line):
+        #import code; print(line); code.interact(local=dict(globals(), **locals()))
         # <page>
         if not self._in_page:
             if self._re_beg_page.match(line):
@@ -106,6 +134,7 @@ class Wiki2Json:
             if tag.endswith('id') or tag == 'ns':
                 self._parent().add_value(int(value))
             elif tag == 'timestamp':
+                ## Syed change, I will keep the iso date
                 self._parent().add_timestamp(value)
             else:
                 self._parent().add_value(value)
@@ -116,7 +145,6 @@ class Wiki2Json:
         m = self._re_beg_tag.match(line)
         if m:
             # <tag>...
-            #import code; code.interact(local=dict(globals(), **locals()))
             self._init_multiline_tag(m.group(1))
             if m.group(2):
                 self._parent().append_multiline_text(m.group(2))
@@ -149,7 +177,7 @@ class Wiki2Json:
     def _end_multiline_tag(self):
         self._previous_multiline_tag = self._current_multiline_tag
         self._current_multiline_tag = None
-        self._parent().close()
+        self._parent().close(self._previous_multiline_tag)
         del self._parents[-1]
         del self._re_end_tags[-1]
 
